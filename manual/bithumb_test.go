@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestWofewrk(t *testing.T) {
+func TestRest(t *testing.T) {
 	t.Skipped()
 	options := lib.RequestOptions{
 		Url:    "https://api.bithumb.com/public/orderbook/BTC_KRW",

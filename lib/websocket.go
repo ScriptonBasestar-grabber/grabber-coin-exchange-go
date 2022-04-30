@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ScriptonBasestar-grabber/bithumb"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/gorilla/websocket"
 	"log"
 	"os"
@@ -30,14 +31,41 @@ func Connect(url string) {
 	}
 	defer c.Close()
 
-	done := make(chan struct{})
+	// kafka
+	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost:9092"})
+	if err != nil {
+		panic(err)
+	}
+
+	defer p.Close()
+
+	// Delivery report handler for produced messages
+	go func() {
+		for e := range p.Events() {
+			switch ev := e.(type) {
+			case *kafka.Message:
+				if ev.TopicPartition.Error != nil {
+					fmt.Printf("Delivery failed: %v\n", ev.TopicPartition)
+				} else {
+					fmt.Printf("Delivered message to %v\n", ev.TopicPartition)
+				}
+			}
+		}
+	}()
 
 	go func() {
-		defer close(done)
 		for {
 			msg := bithumb.MsgDesc{}
 			_, msgStr, _ := c.ReadMessage()
 			fmt.Println("msg1111", string(msgStr))
+
+			topic := "topic1"
+			//p.ProduceChannel() <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: msgStr}
+			p.Produce(&kafka.Message{
+				TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+				Value:          msgStr,
+			}, nil)
+			p.Flush(10)
 			err = c.ReadJSON(&msg)
 			if err != nil {
 				log.Println("read:", err)
@@ -56,8 +84,8 @@ func Connect(url string) {
 
 	for {
 		select {
-		case <-done:
-			return
+		//case <-done:
+		//	return
 		case t := <-ticker.C:
 			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
 			if err != nil {
@@ -75,7 +103,7 @@ func Connect(url string) {
 				return
 			}
 			select {
-			case <-done:
+			//case <-done:
 			case <-time.After(time.Second):
 			}
 			return
