@@ -3,12 +3,13 @@ Grabber Coin Exchange GO
 
 ## 기능
 
-거래소 데이터 모아서 kafka에 전달하는 기능까지만 후 처리는 별도
+거래소 데이터 모아서 kafka에 전달하는 기능까지만 후 처리는 별도(다른데서)
+
+zookeeper이용 부하분산을 시키는 것 까지
 
 ## Install
 
 ```bash
-go get -u
 go mod tidy
 go get github.com/gorilla/websocket
 go get -u ./...
