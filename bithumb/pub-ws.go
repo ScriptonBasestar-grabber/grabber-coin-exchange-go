@@ -24,9 +24,9 @@ var ConversationConn = []MsgDesc{
 //변경호가(orderbookdepth)
 //{"type":"orderbookdepth", "symbols":["BTC_KRW" , "ETH_KRW"]}
 type WSRequest struct {
-	Type      string   `json:"type"` // ticker, transaction, orderbookdepth
-	Symbols   []string `json:"symbols"`
-	TickTypes []string `json:"tickTypes"`
+	Type      WSType         `json:"type"` // ticker, transaction, orderbookdepth
+	Symbols   []string       `json:"symbols"`
+	TickTypes []TimeInterval `json:"tickTypes"`
 }
 type WSTicker struct {
 	Type    string `json:"type"` // ticker

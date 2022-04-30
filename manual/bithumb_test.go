@@ -20,5 +20,7 @@ func TestRest(t *testing.T) {
 
 func TestWS(t *testing.T) {
 	t.Skipped()
-	lib.Connect("wss://pubwss.bithumb.com/pub/ws")
+	ws := lib.WS{}
+	ws.Init("wss://pubwss.bithumb.com/pub/ws", "localhost:9092")
+	ws.Run("topic1")
 }

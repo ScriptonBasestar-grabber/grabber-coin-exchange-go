@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/ScriptonBasestar-grabber/bithumb"
@@ -9,39 +10,42 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"regexp"
 	"time"
 )
 
-//var addr = flag.String("addr", "localhost:8080", "http service address")
+type WS struct {
+	wsConn *websocket.Conn
+	kProd  *kafka.Producer
+}
 
-func Connect(url string) {
+func (w *WS) Init(url string, kafkaServers string) {
+	var err error
+	w.wsConn, _, err = websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+	//defer w.wsConn.Close()
+
+	// kafka
+	w.kProd, err = kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": kafkaServers})
+	if err != nil {
+		panic(err)
+	}
+	//defer p.Close()
+}
+
+func (w *WS) Run(topic string) {
+	var err error
 	flag.Parse()
 	log.SetFlags(0)
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	//u := url.URL{Scheme: "wss", Host: host, Path: "/echo"}
-	//log.Printf("connecting to %s", u.String())
-
-	//c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	c, _, err := websocket.DefaultDialer.Dial(url, nil)
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
-	defer c.Close()
-
-	// kafka
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost:9092"})
-	if err != nil {
-		panic(err)
-	}
-
-	defer p.Close()
-
 	// Delivery report handler for produced messages
 	go func() {
-		for e := range p.Events() {
+		for e := range w.kProd.Events() {
 			switch ev := e.(type) {
 			case *kafka.Message:
 				if ev.TopicPartition.Error != nil {
@@ -53,51 +57,56 @@ func Connect(url string) {
 		}
 	}()
 
+	regexComp, _ := regexp.Compile(`^{"status":"0000".+`)
 	go func() {
 		for {
-			msg := bithumb.MsgDesc{}
-			_, msgStr, _ := c.ReadMessage()
-			fmt.Println("msg1111", string(msgStr))
+			_, msgBArr, _ := w.wsConn.ReadMessage()
+			//fmt.Println("msgType ", msgType)
 
-			topic := "topic1"
-			//p.ProduceChannel() <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: msgStr}
-			p.Produce(&kafka.Message{
-				TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-				Value:          msgStr,
-			}, nil)
-			p.Flush(10)
-			err = c.ReadJSON(&msg)
+			msg := bithumb.MsgDesc{}
+			//err = w.wsConn.ReadJSON(&msg)
+			err = json.Unmarshal(msgBArr, &msg)
 			if err != nil {
 				log.Println("read:", err)
 				return
 			}
-			if msg.Status != "0000" {
-				fmt.Printf("failed to connect %s", msg)
+
+			//fmt.Println("msg ", string(msgBArr))
+			if regexComp.Match(msgBArr) {
+				log.Println("connected : %s", msg)
+			} else {
+				w.kProd.ProduceChannel() <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: msgBArr}
 			}
-			log.Printf("connected : %s", msg)
 		}
 	}()
 
-	c.WriteMessage(1, []byte("{\"type\":\"ticker\", \"symbols\": [\"BTC_KRW\", \"ETH_KRW\"], \"tickTypes\": [\"30M\", \"1H\", \"12H\", \"24H\", \"MID\" ]}"))
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	var bArr []byte
+	bArr, _ = json.Marshal(bithumb.WSRequest{
+		Type:      bithumb.WSTypeTicker,
+		Symbols:   bithumb.Codes,
+		TickTypes: bithumb.Intervals})
+	w.wsConn.WriteMessage(1, bArr)
+	bArr, _ = json.Marshal(bithumb.WSRequest{
+		Type:    bithumb.WSTypeTransaction,
+		Symbols: bithumb.Codes,
+	})
+	w.wsConn.WriteMessage(1, bArr)
+	bArr, _ = json.Marshal(bithumb.WSRequest{
+		Type:    bithumb.WSTypeOrderbookdepth,
+		Symbols: bithumb.Codes,
+	})
+	w.wsConn.WriteMessage(1, bArr)
+
+	defer w.wsConn.Close()
+	defer w.kProd.Close()
 
 	for {
 		select {
-		//case <-done:
-		//	return
-		case t := <-ticker.C:
-			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
-			if err != nil {
-				log.Println("write:", err)
-				return
-			}
 		case <-interrupt:
 			log.Println("interrupt")
-
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
-			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			err := w.wsConn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
 				log.Println("write close:", err)
 				return
