@@ -8,20 +8,57 @@ const (
 	WSTypeTransaction    WSType = "transaction"
 )
 
-type TickerWrapper struct {
-	Type    string `json:"type"`
-	Content `json:"content"`
+var ConversationConn = []MsgDesc{
+	{Status: "0000", Msg: "Connected Successfully"},
+	// 필터 설정응답
+	// 성공
+	{Status: "0000", Msg: "Filter Registered Successfully"},
+	// 실패
+	{Status: "5100", Msg: "Invalid Filter Syntax"},
 }
 
-type OrderbookdepthWrapper struct {
+//현재가(ticker)
+//{"type":"ticker", "symbols": ["BTC_KRW", "ETH_KRW"], "tickTypes": ["30M", "1H", "12H", "24H", "MID" ]}
+//체결(transaction)
+//{"type":"transaction", "symbols":["BTC_KRW" , "ETH_KRW"]}
+//변경호가(orderbookdepth)
+//{"type":"orderbookdepth", "symbols":["BTC_KRW" , "ETH_KRW"]}
+type WSRequest struct {
+	Type      string   `json:"type"` // ticker, transaction, orderbookdepth
+	Symbols   []string `json:"symbols"`
+	TickTypes []string `json:"tickTypes"`
+}
+type WSTicker struct {
+	Type    string `json:"type"` // ticker
+	Content struct {
+		Symbol         string `json:"symbol"`
+		TickType       string `json:"tickType"`
+		Date           string `json:"date"`
+		Time           string `json:"time"`
+		OpenPrice      string `json:"openPrice"`
+		ClosePrice     string `json:"closePrice"`
+		LowPrice       string `json:"lowPrice"`
+		HighPrice      string `json:"highPrice"`
+		Value          string `json:"value"`
+		Volume         string `json:"volume"`
+		SellVolume     string `json:"sellVolume"`
+		BuyVolume      string `json:"buyVolume"`
+		PrevClosePrice string `json:"prevClosePrice"`
+		ChgRate        string `json:"chgRate"`
+		ChgAmt         string `json:"chgAmt"`
+		VolumePower    string `json:"volumePower"`
+	} `json:"content"`
+}
+
+type WSOrderbookdepth struct {
 	Type    string `json:"type"` // orderbookdepth
 	Content struct {
-		List []Orderbookdepth `json:"list"`
+		List     []WSOrderbookdepthContent `json:"list"`
+		Datetime int64                     `json:"datetime"` // 일시
 	} `json:"content"`
-	Datetime uint64 `json:"datetime"` // 일시
 }
 
-type Orderbookdepth struct {
+type WSOrderbookdepthContent struct {
 	Symbol    string `json:"symbol"`
 	OrderType string `json:"orderType"` // 주문타입 bid/ask
 	Price     string `json:"price"`     // 호가
@@ -29,8 +66,8 @@ type Orderbookdepth struct {
 	Total     int    `json:"total"`     // 건수
 }
 
-type TransactionWrapper struct {
-	Type    string `json:"type"`
+type WSTransaction struct {
+	Type    string `json:"type"` // transaction
 	Content struct {
 		List []TransactionContent `json:"list"`
 	} `json:"content"`
@@ -44,26 +81,4 @@ type TransactionContent struct {
 	ContAmt   string `json:"contAmt"`   // 체결금액
 	ContDtm   string `json:"contDtm"`   // 체결시각
 	Updn      string `json:"updn"`      // 직전시세와 비교: up-상승, dn-하락
-}
-type AssetsStatus struct {
-	Status string `json:"status"`
-	Data   []struct {
-		DepositStatus    int `json:"deposit_status"`
-		WithdrawalStatus int `json:"withdrawal_status"`
-	} `json:"data"`
-}
-
-type BithumbCryptoIndex struct {
-	Status string `json:"status"`
-	Data   struct {
-		Btai MarketIndex `json:"btai"`
-		Btmi MarketIndex `json:"btmi"`
-		Date string      `json:"date"` // 타임스템프
-	} `json:"data"`
-}
-
-type MarketIndex struct {
-	MarketIndex string `json:"market_index"` // 시장지수기준
-	Width       string `json:"width"`        // 등락폭
-	Rate        string `json:"rate"`         // 등락율
 }

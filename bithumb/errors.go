@@ -5,7 +5,7 @@ type MsgDesc struct {
 	Msg    string `json:"resmsg"`
 }
 
-var errors = map[int32][]MsgDesc{
+var Errors = map[int32][]MsgDesc{
 	5100: {
 		MsgDesc{"Bad Request(SSL)", "https 호출 URL이 아님"},
 		MsgDesc{"Bad Request(Bad Method)", "POST 형식으로 호출하지 않음"},

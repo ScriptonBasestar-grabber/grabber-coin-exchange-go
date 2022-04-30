@@ -26,3 +26,6 @@ const (
 	Withdraw     SearchType = "5"
 	InKRWDeposit SearchType = "9"
 )
+
+var urlWs = "wss://pubwss.bithumb.com/pub/ws"
+var urlRest = "https://api.bithumb.com/public"
