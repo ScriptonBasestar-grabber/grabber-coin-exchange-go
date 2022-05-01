@@ -1,13 +1,16 @@
-package lib
+package bithumb
 
 import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/ScriptonBasestar-grabber/bithumb"
+	"github.com/ScriptonBasestar-grabber/lib"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/gorilla/websocket"
+	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
@@ -15,8 +18,9 @@ import (
 )
 
 type WS struct {
-	wsConn *websocket.Conn
-	kProd  *kafka.Producer
+	wsConn  *websocket.Conn
+	kProd   *kafka.Producer
+	symbols []string
 }
 
 func (w *WS) Init(url string, kafkaServers string) {
@@ -33,6 +37,23 @@ func (w *WS) Init(url string, kafkaServers string) {
 		panic(err)
 	}
 	//defer p.Close()
+
+	// grab symbols
+	client := &http.Client{}
+	var body io.Reader
+	req, err := http.NewRequest("GET", "https://api.bithumb.com/public/ticker/all_krw", body)
+	lib.Err(err)
+	res, err := client.Do(req)
+	lib.Err(err)
+	defer res.Body.Close()
+	bytes, err := ioutil.ReadAll(res.Body)
+	lib.Err(err)
+	var r RestTicker
+	err = json.Unmarshal(bytes, &r)
+
+	for k, _ := range r.Data {
+		w.symbols = append(w.symbols, k+"_KRW")
+	}
 }
 
 func (w *WS) Run(topic string) {
@@ -63,7 +84,7 @@ func (w *WS) Run(topic string) {
 			_, msgBArr, _ := w.wsConn.ReadMessage()
 			//fmt.Println("msgType ", msgType)
 
-			msg := bithumb.MsgDesc{}
+			msg := MsgDesc{}
 			//err = w.wsConn.ReadJSON(&msg)
 			err = json.Unmarshal(msgBArr, &msg)
 			if err != nil {
@@ -72,8 +93,9 @@ func (w *WS) Run(topic string) {
 			}
 
 			//fmt.Println("msg ", string(msgBArr))
+			// if....계속 호출되는건 싫은데
 			if regexComp.Match(msgBArr) {
-				log.Println("connected : %s", msg)
+				log.Println("connected : ", msg)
 			} else {
 				w.kProd.ProduceChannel() <- &kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: msgBArr}
 			}
@@ -81,21 +103,21 @@ func (w *WS) Run(topic string) {
 	}()
 
 	var bArr []byte
-	bArr, _ = json.Marshal(bithumb.WSRequest{
-		Type:      bithumb.WSTypeTicker,
-		Symbols:   bithumb.Codes,
-		TickTypes: bithumb.Intervals})
-	w.wsConn.WriteMessage(1, bArr)
-	bArr, _ = json.Marshal(bithumb.WSRequest{
-		Type:    bithumb.WSTypeTransaction,
-		Symbols: bithumb.Codes,
+	bArr, _ = json.Marshal(WSRequest{
+		Type:      WSTypeTicker,
+		Symbols:   Symbols,
+		TickTypes: Intervals})
+	w.wsConn.WriteMessage(websocket.TextMessage, bArr)
+	bArr, _ = json.Marshal(WSRequest{
+		Type:    WSTypeTransaction,
+		Symbols: Symbols,
 	})
-	w.wsConn.WriteMessage(1, bArr)
-	bArr, _ = json.Marshal(bithumb.WSRequest{
-		Type:    bithumb.WSTypeOrderbookdepth,
-		Symbols: bithumb.Codes,
+	w.wsConn.WriteMessage(websocket.TextMessage, bArr)
+	bArr, _ = json.Marshal(WSRequest{
+		Type:    WSTypeOrderbookdepth,
+		Symbols: Symbols,
 	})
-	w.wsConn.WriteMessage(1, bArr)
+	w.wsConn.WriteMessage(websocket.TextMessage, bArr)
 
 	defer w.wsConn.Close()
 	defer w.kProd.Close()

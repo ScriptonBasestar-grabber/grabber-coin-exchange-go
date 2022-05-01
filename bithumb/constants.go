@@ -30,5 +30,5 @@ const (
 var UrlWs = "wss://pubwss.bithumb.com/pub/ws"
 var UrlRest = "https://api.bithumb.com/public"
 
-var Codes = []string{"BTC_KRW", "ETH_KRW"}
+var Symbols = []string{"BTC_KRW", "ETH_KRW"}
 var Intervals = []TimeInterval{Min1, Min3, Min5, Min10, Min30, Hour1, Hour6, Hour12, Hour24}

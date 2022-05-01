@@ -17,6 +17,11 @@ go get -u ./...
 
 ## Exchanges
 
+분류기준: 거래소 / 거래통화 / COIN
+
+bithumb / krw / btc
+bithumb / btc / 1inch
+
 추가중
 * Bithumb
   https://apidocs.bithumb.com/docs

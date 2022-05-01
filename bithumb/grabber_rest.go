@@ -1,4 +1,4 @@
-package lib
+package bithumb
 
 import (
 	"encoding/json"
